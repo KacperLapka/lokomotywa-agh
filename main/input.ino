@@ -27,12 +27,35 @@ void SensorReboot() {
     delay(100);
     DebugPrint("The Sensor should be up now.");
 
-    if (!DistanceSensor[i].begin(DISTANCE_SENSOR_ADDRESS[i])) {
+    if (!DistanceSensor[i].begin(DISTANCE_SENSOR_ADDRESS[i],true , &Wire, Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY)) {
       DebugPrint("Failed to boot VL53L0X");
       while (1);
     }
+    delay(100);
   }
 }
+
+void SensorReboot(int sensor_num) {
+  pinMode(DistanceSensorShut[sensor_num], OUTPUT);
+  digitalWrite(DistanceSensorShut[sensor_num], LOW);
+
+  delay(10); // give them some time to go down
+
+  char buffer[32];
+  std::sprintf(buffer, "Booting sensor %d...", sensor_num);
+  DebugPrint(buffer);
+
+  digitalWrite(DistanceSensorShut[sensor_num], HIGH);
+  delay(10);
+  DebugPrint("The Sensor should be up now.");
+
+  if (!DistanceSensor[sensor_num].begin(DISTANCE_SENSOR_ADDRESS[sensor_num],true , &Wire, Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY)) {
+    DebugPrint("Failed to boot VL53L0X");
+    while (1);
+  }
+  delay(10);
+}
+
 void SetupInput() {
     for (int i = 0; i < NUM_STATIONS; i++) {
         previous[i] = false;
@@ -60,12 +83,6 @@ void SetupInput() {
     DebugPrint("Both VL53L0X Ready now.");
 }
 
-bool checkI2CHealth(int sensorAddress) {
-  // Simple I2C device detection
-  Wire.beginTransmission(sensorAddress);
-  uint8_t error = Wire.endTransmission();
-  return (error != 0);
-}
 
 // IsTrainDetected returns true whenever a train is detected by our sensor.
 // This also saves last result and returns true ONLY, when the state changed.
@@ -74,13 +91,17 @@ bool IsTrainDetected() {
     bool result = false;
     VL53L0X_RangingMeasurementData_t measure;
     for (int i = 0; i < NUM_STATIONS; i++) {
-        char buffer[32];
+        char buffer[256];
         char state;
         state = DistanceSensor[i].rangingTest(&measure, false);
-        if(checkI2CHealth(DISTANCE_SENSOR_ADDRESS[i])){
-          SensorReboot();
+        if(state != 0){
+          printf("Error getting sensor state (restarting sensors): %d", state);
+          char err[128];  
+          VL53L0X_get_pal_error_string(state, err);
+          std::sprintf(buffer, "Error getting sensor%d state (restarting sensors): %s", i, err);
+          DebugPrint(buffer);
+          SensorReboot(i);
         }
-        distance[i] = DistanceSensor[i].readRange();
         distance[i] = measure.RangeMilliMeter;
 
         std::sprintf(buffer, "Distance%d: %d mm", i, distance[i]);
