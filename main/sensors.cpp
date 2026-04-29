@@ -28,7 +28,7 @@ void sensorsReboot() {
 
     if (!DistanceSensor[i].begin(DISTANCE_SENSOR_ADDRESS[i],true , &Wire, Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY)) {
       debugPrint("Failed to boot VL53L0X");
-      while (1);
+      i--;
     }
     delay(100);
   }
@@ -50,7 +50,6 @@ void sensorReboot(int sensor_num) {
 
   if (!DistanceSensor[sensor_num].begin(DISTANCE_SENSOR_ADDRESS[sensor_num],true , &Wire, Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY)) {
     debugPrint("Failed to boot VL53L0X");
-    while (1);
   }
   delay(10);
 }
