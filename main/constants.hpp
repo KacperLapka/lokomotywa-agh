@@ -5,6 +5,7 @@ const int SPEED_CAP = 200; // [0-255]
 const int STOP_TIME = 5000; // ms
 const bool GRACEFUL_STOP = true; // whether to stop immediately or gradually
 const bool GRACEFUL_START = true; // whether to start immediately or gradually
+const int LOOP_DELAY = 200; // ms
 
 const int NUM_STATIONS = 4; // Number of Distance sensors to be proceeded.
 const int DISTANCE_SENSOR_ADDRESS[] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};

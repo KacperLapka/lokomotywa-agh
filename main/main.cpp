@@ -31,11 +31,11 @@ void setup() {
 
 // The main loop.
 void loop() {
-  engineRotate();
-
   if (isTrainDetected()) {
     debugPrint("Train detected! Stopping train");
     engineStop();
     delay(STOP_TIME);
+    engineStart();
   }
+  delay(LOOP_DELAY);
 }

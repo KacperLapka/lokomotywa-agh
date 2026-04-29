@@ -8,7 +8,7 @@ void setSpeed(int speed) {
   analogWrite(ENGINE_A_IN1, speed);
 }
 
-void engineStop () {
+void engineStop() {
   if (GRACEFUL_STOP) {
     int currentSpeed = SPEED_CAP;
     while (currentSpeed > 0) {
@@ -20,7 +20,7 @@ void engineStop () {
   digitalWrite(ENGINE_A_IN2, HIGH);
 }
 
-void engineRotate() {
+void engineStart() {
   digitalWrite(ENGINE_A_IN1, LOW);
   digitalWrite(ENGINE_A_IN2, HIGH);
   setSpeed(0);
