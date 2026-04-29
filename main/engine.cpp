@@ -23,6 +23,7 @@ void engineStop () {
 void engineRotate() {
   digitalWrite(ENGINE_A_IN1, LOW);
   digitalWrite(ENGINE_A_IN2, HIGH);
+  setSpeed(0);
   if (GRACEFUL_START) {
     int currentSpeed = 0;
     while (currentSpeed < SPEED_CAP) {
