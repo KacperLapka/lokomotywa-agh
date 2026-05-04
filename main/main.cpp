@@ -22,9 +22,8 @@ void setup() {
 
   debugPrint("Hello from Lokomotywa AGH script!");
   debugPrint("Preparing stuff...");
-  setupInput();
+  setupSensors();
   setupEngine();
-  setupDistanceSensors();
 
   debugPrint("Preparation done. Proceed to loop...n");
 }
