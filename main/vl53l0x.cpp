@@ -4,7 +4,7 @@
 // Based on https://github.com/pololu/vl53l0x-arduino
 static const char __attribute__((unused)) TAG[] = "ranger";
 
-#include "vl53l0x.h"
+#include "vl53l0x.hpp"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include <driver/i2c_master.h>
@@ -170,7 +170,7 @@ vl53l0x_writeReg8Bit (vl53l0x_t * v, uint8_t reg, uint8_t val)
 void
 vl53l0x_writeReg16Bit (vl53l0x_t * v, uint8_t reg, uint16_t val)
 {
-   uint8_t write_buf[3] = {reg, val >> 8, val & 0xFF};
+   uint8_t write_buf[3] = {reg, (uint8_t)(val >> 8), (uint8_t)(val & 0xFF)};
    esp_err_t err = i2c_master_transmit(v->dev_handle, write_buf, 3, TIMEOUT_MS);
    if (err != ESP_OK)
       v->i2c_fail = 1;
@@ -180,7 +180,7 @@ vl53l0x_writeReg16Bit (vl53l0x_t * v, uint8_t reg, uint16_t val)
 void
 vl53l0x_writeReg32Bit (vl53l0x_t * v, uint8_t reg, uint32_t val)
 {
-   uint8_t write_buf[5] = {reg, val >> 24, val >> 16, val >> 8, val & 0xFF};
+   uint8_t write_buf[5] = {reg, (uint8_t)(val >> 24), (uint8_t)(val >> 16), (uint8_t)(val >> 8), (uint8_t)(val & 0xFF)};
    esp_err_t err = i2c_master_transmit(v->dev_handle, write_buf, 5, TIMEOUT_MS);
    if (err != ESP_OK)
       v->i2c_fail = 1;
@@ -234,7 +234,7 @@ vl53l0x_readMulti (vl53l0x_t * v, uint8_t reg, uint8_t * dst, uint8_t count)
 void
 vl53l0x_writeMulti (vl53l0x_t * v, uint8_t reg, uint8_t const *src, uint8_t count)
 {
-   uint8_t *write_buf = malloc(count + 1);
+   uint8_t *write_buf = (uint8_t*)malloc(count + 1);
    if (!write_buf) {
       v->i2c_fail = 1;
       return;
@@ -552,7 +552,7 @@ vl53l0x_config_with_bus (i2c_master_bus_handle_t bus_handle, int8_t xshut, uint8
    if (xshut >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO (xshut))
       return NULL;
    
-   vl53l0x_t *v = malloc (sizeof (*v));
+   vl53l0x_t *v = (vl53l0x_t*)malloc (sizeof (*v));
    if (!v)
       return NULL;
    
@@ -580,10 +580,10 @@ vl53l0x_config_with_bus (i2c_master_bus_handle_t bus_handle, int8_t xshut, uint8
    
    if (xshut >= 0)
    {
-      gpio_reset_pin (xshut);
-      gpio_set_level (xshut, 0);        // Off
-      gpio_set_drive_capability (xshut, GPIO_DRIVE_CAP_3);
-      gpio_set_direction (xshut, GPIO_MODE_OUTPUT);
+      gpio_reset_pin ((gpio_num_t) xshut);
+      gpio_set_level ((gpio_num_t) xshut, 0);        // Off
+      gpio_set_drive_capability ((gpio_num_t) xshut, GPIO_DRIVE_CAP_3);
+      gpio_set_direction ((gpio_num_t) xshut, GPIO_MODE_OUTPUT);
    }
    
    return v;
@@ -601,15 +601,14 @@ vl53l0x_config (int8_t port, int8_t scl, int8_t sda, int8_t xshut, uint8_t addre
       return NULL;
 
    // Create new I2C master bus
-   i2c_master_bus_config_t bus_config = {
-      .clk_source = I2C_CLK_SRC_DEFAULT,
-      .i2c_port = port,
-      .scl_io_num = scl,
-      .sda_io_num = sda,
-      .glitch_ignore_cnt = 7,
-      .flags.enable_internal_pullup = true,
-   };
-   
+   i2c_master_bus_config_t bus_config = {};
+   bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
+   bus_config.i2c_port = port;
+   bus_config.scl_io_num = (gpio_num_t)scl;
+   bus_config.sda_io_num = (gpio_num_t)sda;
+   bus_config.glitch_ignore_cnt = 7;
+   bus_config.flags.enable_internal_pullup = true;
+      
    i2c_master_bus_handle_t bus_handle;
    esp_err_t err = i2c_new_master_bus(&bus_config, &bus_handle);
    if (err != ESP_OK)
@@ -634,9 +633,9 @@ vl53l0x_init (vl53l0x_t * v)
    // Set up the VL53L0X
    if (v->xshut >= 0)
    {
-      gpio_set_level (v->xshut, 0);     // Off
+      gpio_set_level ((gpio_num_t)v->xshut, 0);     // Off
       usleep (100000);
-      gpio_set_level (v->xshut, 1);     // On
+      gpio_set_level ((gpio_num_t)v->xshut, 1);     // On
       usleep (10000);
    }
    

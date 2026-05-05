@@ -1,11 +1,10 @@
 #include "sensors.hpp"
 #include "driver/i2c_master.h"
 #include "driver/gpio.h"
-extern "C" {
-    #include "vl53l0x.h" // Replace with the actual name of your library header
-}
+#include "vl53l0x.hpp"
 #include "Arduino.h"
 #include "constants.hpp"
+#include "utils.hpp"
 
 vl53l0x_t *sensors[NUM_STATIONS];
 i2c_master_bus_handle_t bus_handle;
@@ -51,6 +50,7 @@ void setupSensors()
     {
       vl53l0x_end(sensors[i]);
       sensors[i] = NULL;
+      debugPrint("Sensor init error");
       continue;
     }
 
@@ -116,6 +116,7 @@ void sensorReboot(int sensor_num)
   const char *err = vl53l0x_init(sensors[sensor_num]);
   if (err)
   {
+    debugPrint("Sensor init error");
     vl53l0x_end(sensors[sensor_num]);
     sensors[sensor_num] = NULL;
   }
@@ -124,6 +125,7 @@ void sensorReboot(int sensor_num)
   vl53l0x_setMeasurementTimingBudget(sensors[sensor_num], 40000); // 40ms
 
   vl53l0x_startContinuous(sensors[sensor_num], 100); // 100ms interval
+  debugPrint("Sensor inited");
 }
 
 void setupInput()
@@ -159,7 +161,7 @@ bool isTrainDetected()
   {
     if (!sensors[i])
     {
-      // debugPrint("Sensor " + (i + 1) + " unaviable");
+      debugPrint("Sensor unaviable");
       continue;
     }
 
@@ -170,15 +172,19 @@ bool isTrainDetected()
     }
     if (vl53l0x_timeoutOccurred(sensors[i]))
     {
-      // debugPrint("Sensor " + (i + 1) + " Timeout");
+      debugPrint("Sensor Timeout");
+      sensorReboot(i);
     }
     else if (vl53l0x_i2cFail(sensors[i]))
     {
-      // debugPrint("Sensor: " + (i + 1) + " I2C error");
+      debugPrint("Sensor: I2C error");
+      sensorReboot(i);
     }
     else
     {
-      // debugPrint("Sensor: " + range_mm + " mm");
+      char buffer[250];
+      sprintf(buffer, "Sensor: %d mm", range_mm);
+      debugPrint(buffer);
     }
     if (min_mesure < TRAIN_DETECTION_THRESHOLD)
     {
