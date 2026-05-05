@@ -24,9 +24,9 @@ void setup() {
   debugPrint("Preparing stuff...");
   setupInput();
   setupEngine();
-  setupDistanceSensors();
 
   debugPrint("Preparation done. Proceed to loop...n");
+  engineStart();
 }
 
 // The main loop.
@@ -34,8 +34,9 @@ void loop() {
   if (isTrainDetected()) {
     debugPrint("Train detected! Stopping train");
     engineStop();
-    delay(STOP_TIME);
+    delay(5000);
     engineStart();
+    delay(2000);
   }
-  delay(LOOP_DELAY);
+  delay(10);
 }

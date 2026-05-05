@@ -12,24 +12,26 @@ void engineStop() {
   if (GRACEFUL_STOP) {
     int currentSpeed = SPEED_CAP;
     while (currentSpeed > 0) {
+      currentSpeed -= SPEED_CHANGE_FACTOR;
       setSpeed(currentSpeed - SPEED_CHANGE_FACTOR);
       delay(100);
     }
+  }else {
+    setSpeed(0);
   }
-  digitalWrite(ENGINE_A_IN1, HIGH);
-  digitalWrite(ENGINE_A_IN2, HIGH);
 }
 
 void engineStart() {
-  digitalWrite(ENGINE_A_IN1, LOW);
-  digitalWrite(ENGINE_A_IN2, HIGH);
-  setSpeed(0);
   if (GRACEFUL_START) {
-    int currentSpeed = 0;
+    setSpeed(INITAL_SPEED);
+    int currentSpeed = INITAL_SPEED;
     while (currentSpeed < SPEED_CAP) {
-      setSpeed(currentSpeed + SPEED_CHANGE_FACTOR);
+      currentSpeed += SPEED_CHANGE_FACTOR;
+      setSpeed(currentSpeed);
       delay(100);
     }
+  }else {
+    setSpeed(SPEED_CAP);
   }
 }
 

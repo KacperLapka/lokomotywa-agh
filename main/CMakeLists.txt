@@ -1,3 +1,3 @@
-idf_component_register(SRCS "main.cpp" "engine.cpp" "sensors.cpp" "utils.cpp"
+idf_component_register(SRCS "main.cpp" "engine.cpp" "sensors.cpp" "utils.cpp" "vl53l0x.cpp"
                        INCLUDE_DIRS "."
-                       REQUIRES Adafruit_VL53L0X)
+                       REQUIRES "driver" "esp_timer")

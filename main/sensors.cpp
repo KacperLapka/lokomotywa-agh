@@ -1,113 +1,195 @@
 #include "sensors.hpp"
-#include "constants.hpp"
+#include "driver/i2c_master.h"
+#include "driver/gpio.h"
+#include "vl53l0x.hpp"
 #include "Arduino.h"
+#include "constants.hpp"
 #include "utils.hpp"
-#include <Adafruit_VL53L0X.h>
-#include <Wire.h>
-#include <iostream>
 
-Adafruit_VL53L0X DistanceSensor[NUM_STATIONS];
-void sensorsReboot() {
-  for (int i = 0; i < NUM_STATIONS; i++) {
-    pinMode(DISTANCE_SENSOR_SHUT[i], OUTPUT);
-    digitalWrite(DISTANCE_SENSOR_SHUT[i], LOW);
+vl53l0x_t *sensors[NUM_STATIONS];
+i2c_master_bus_handle_t bus_handle;
+
+// int8_t DISTANCE_SENSOR_SHUT[NUM_SENSORS] = {SENSOR1_XSHUT, SENSOR2_XSHUT, SENSOR3_XSHUT, SENSOR4_XSHUT};
+// uint8_t DISTANCE_SENSOR_ADDRESS[NUM_SENSORS] = {SENSOR1_ADDR, SENSOR2_ADDR, SENSOR3_ADDR, SENSOR4_ADDR};
+
+void setupSensors()
+{
+  for (int i = 0; i < NUM_STATIONS; i++)
+  {
+    gpio_reset_pin((gpio_num_t) DISTANCE_SENSOR_SHUT[i]);
+    gpio_set_direction((gpio_num_t) DISTANCE_SENSOR_SHUT[i], GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t) DISTANCE_SENSOR_SHUT[i], 0); // Keep in reset
+    delay(10);
   }
 
-  delay(50); // give them some time to go down
-    
-  debugPrint("All the distance Sensors are disabled now.");
+  delay(100);
 
-  for (int i = 0; i < NUM_STATIONS; i++) {
-    char buffer[32];
-    std::sprintf(buffer, "Booting sensor %d...", i);
-    debugPrint(buffer);
+  // Initialize each sensor one by one
+  for (int i = 0; i < NUM_STATIONS; i++)
+  {
+    // Create sensor with shared bus and default address (0x29)
+    sensors[i] = vl53l0x_config_with_bus(
+        bus_handle,
+        DISTANCE_SENSOR_SHUT[i],
+        0x29, // All start with default address
+        1     // Use 2.8V I/O mode
+    );
 
-    digitalWrite(DISTANCE_SENSOR_SHUT[i], HIGH);
-    delay(100);
-    debugPrint("The Sensor should be up now.");
-
-    if (!DistanceSensor[i].begin(DISTANCE_SENSOR_ADDRESS[i],true , &Wire, Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY)) {
-      debugPrint("Failed to boot VL53L0X");
-      i--;
+    if (!sensors[i])
+    {
+      continue;
     }
-    delay(100);
+
+    // Release this sensor from reset
+    gpio_set_level((gpio_num_t) DISTANCE_SENSOR_SHUT[i], 1);
+    delay(10); // Wait for sensor to boot
+
+    // Initialize the sensor
+    const char *err = vl53l0x_init(sensors[i]);
+    if (err)
+    {
+      vl53l0x_end(sensors[i]);
+      sensors[i] = NULL;
+      debugPrint("Sensor init error");
+      continue;
+    }
+
+    // Change to unique I2C address
+    vl53l0x_setAddress(sensors[i], DISTANCE_SENSOR_ADDRESS[i]);
+    // Optional: Configure timing budget
+    vl53l0x_setMeasurementTimingBudget(sensors[i], 40000); // 40ms
+  }
+
+  for (int i = 0; i < NUM_STATIONS; i++)
+  {
+    if (sensors[i])
+    {
+      vl53l0x_startContinuous(sensors[i], 100); // 100ms interval
+    }
   }
 }
 
-void sensorReboot(int sensor_num) {
-  pinMode(DISTANCE_SENSOR_SHUT[sensor_num], OUTPUT);
-  digitalWrite(DISTANCE_SENSOR_SHUT[sensor_num], LOW);
-
-  delay(10); // give them some time to go down
-
-  char buffer[32];
-  std::sprintf(buffer, "Booting sensor %d...", sensor_num);
-  debugPrint(buffer);
-
-  digitalWrite(DISTANCE_SENSOR_SHUT[sensor_num], HIGH);
-  delay(10);
-  debugPrint("The Sensor should be up now.");
-
-  if (!DistanceSensor[sensor_num].begin(DISTANCE_SENSOR_ADDRESS[sensor_num],true , &Wire, Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY)) {
-    debugPrint("Failed to boot VL53L0X");
+void sensorsReboot()
+{
+  for (int i = 0; i < NUM_STATIONS; i++)
+  {
+    if (sensors[i])
+    {
+      vl53l0x_stopContinuous(sensors[i]);
+      vl53l0x_end(sensors[i]); // Does NOT delete the shared bus
+    }
   }
-  delay(10);
+  i2c_del_master_bus(bus_handle);
+
+  i2c_master_bus_config_t bus_config = {
+      .i2c_port = 0,
+      .sda_io_num = (gpio_num_t) DISTANCE_SENSOR_SDA,
+      .scl_io_num = (gpio_num_t) DISTANCE_SENSOR_SCL,
+      .clk_source = I2C_CLK_SRC_DEFAULT,
+      .glitch_ignore_cnt = 7,
+      .intr_priority = 0,           
+      .trans_queue_depth = 0,
+      .flags = {
+          .enable_internal_pullup = true
+      },
+  };
+
+  i2c_new_master_bus(&bus_config, &bus_handle);
+
+  setupSensors();
 }
 
-void setupInput() {
-    debugPrint("Initializing I2C distance sensors...");
-    Wire.setPins(DISTANCE_SENSOR_SDA, DISTANCE_SENSOR_SCL);
-    if (!Wire.begin()) {
-        debugPrint("Failed initialize I2C on specified ports (ESP will be trapped here)!");
-        while (1);
-    }
+void sensorReboot(int sensor_num)
+{
+  gpio_reset_pin((gpio_num_t) DISTANCE_SENSOR_SHUT[sensor_num]);
+  gpio_set_direction((gpio_num_t) DISTANCE_SENSOR_SHUT[sensor_num], GPIO_MODE_OUTPUT);
+  gpio_set_level((gpio_num_t) DISTANCE_SENSOR_SHUT[sensor_num], 0); // Keep in reset
 
-    Wire.setClock(400);
+  sensors[sensor_num] = vl53l0x_config_with_bus(
+      bus_handle,
+      DISTANCE_SENSOR_SHUT[sensor_num],
+      0x29, // All start with default address
+      1     // Use 2.8V I/O mode
+  );
+  gpio_set_level((gpio_num_t) DISTANCE_SENSOR_SHUT[sensor_num], 1);
 
-    debugPrint("I2C initialized.");
+  const char *err = vl53l0x_init(sensors[sensor_num]);
+  if (err)
+  {
+    debugPrint("Sensor init error");
+    vl53l0x_end(sensors[sensor_num]);
+    sensors[sensor_num] = NULL;
+  }
 
-    /*
-    for (int i = 0; i < NUM_STATIONS; i++) {
-        DistanceSensor[i] = Adafruit_VL53L0X();
-    }
-    */
+  vl53l0x_setAddress(sensors[sensor_num], DISTANCE_SENSOR_ADDRESS[sensor_num]);
+  vl53l0x_setMeasurementTimingBudget(sensors[sensor_num], 40000); // 40ms
 
-    sensorsReboot();
-
-    debugPrint("Both VL53L0X Ready now.");
+  vl53l0x_startContinuous(sensors[sensor_num], 100); // 100ms interval
+  debugPrint("Sensor inited");
 }
 
+void setupInput()
+{
+  i2c_master_bus_config_t bus_config = {
+      .i2c_port = 0,
+      .sda_io_num = (gpio_num_t) DISTANCE_SENSOR_SDA,
+      .scl_io_num = (gpio_num_t) DISTANCE_SENSOR_SCL,
+      .clk_source = I2C_CLK_SRC_DEFAULT,
+      .glitch_ignore_cnt = 7,
+      .intr_priority = 0,           
+      .trans_queue_depth = 0,
+      .flags = {
+          .enable_internal_pullup = true
+      },
+  };
+
+  esp_err_t ret = i2c_new_master_bus(&bus_config, &bus_handle);
+  if (ret != ESP_OK)
+  {
+    return;
+  }
+
+  sensorsReboot();
+}
 
 // IsTrainDetected returns true whenever a train is detected by our sensor.
 // This also saves last result and returns true ONLY, when the state changed.
-bool isTrainDetected() {
-    int distance[NUM_STATIONS];
-    VL53L0X_RangingMeasurementData_t measure;
-    for (int i = 0; i < NUM_STATIONS; i++) {
-        char buffer[256];
-        char err_code =  DistanceSensor[i].rangingTest(&measure, false);
-        if(err_code != 0){
-          char err[128];  
-          VL53L0X_get_pal_error_string(err_code, err);
-          std::sprintf(buffer, "Error getting sensor%d state error_code: %d (restarting sensors): %s", i, err_code, err);
-          debugPrint(buffer);
-          sensorReboot(i);
-          continue;
-        }
-        distance[i] = measure.RangeMilliMeter;
-
-        std::sprintf(buffer, "Distance%d: %d mm", i, distance[i]);
-        debugPrint(buffer);
-        bool detection = (distance[i] <= TRAIN_DETECTION_THRESHOLD) && distance[i];
-        if (detection) {
-            return true;
-        }
+bool isTrainDetected()
+{
+  int min_mesure = 0xffff;
+  for (int i = 0; i < NUM_STATIONS; i++)
+  {
+    if (!sensors[i])
+    {
+      debugPrint("Sensor unaviable");
+      continue;
     }
 
-    return false;
-}
-
-void setupDistanceSensors() {
-  pinMode(DISTANCE_SENSOR_SDA, INPUT_PULLUP);
-  pinMode(DISTANCE_SENSOR_SCL, INPUT_PULLUP);
+    uint16_t range_mm = vl53l0x_readRangeContinuousMillimeters(sensors[i]);
+    if (range_mm < min_mesure)
+    {
+      min_mesure = range_mm;
+    }
+    if (vl53l0x_timeoutOccurred(sensors[i]))
+    {
+      debugPrint("Sensor Timeout");
+      sensorReboot(i);
+    }
+    else if (vl53l0x_i2cFail(sensors[i]))
+    {
+      debugPrint("Sensor: I2C error");
+      sensorReboot(i);
+    }
+    else
+    {
+      char buffer[250];
+      sprintf(buffer, "Sensor: %d mm", range_mm);
+      debugPrint(buffer);
+    }
+    if (min_mesure < TRAIN_DETECTION_THRESHOLD)
+    {
+      return true;
+    }
+  }
+  return false;
 }

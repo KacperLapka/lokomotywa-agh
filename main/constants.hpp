@@ -1,11 +1,13 @@
 #pragma once
-const int TRAIN_DETECTION_THRESHOLD = 70; // mm
+const int TRAIN_DETECTION_THRESHOLD = 150; // mm
 const int SPEED_CHANGE_FACTOR = 40;
-const int SPEED_CAP = 200; // [0-255]
+// const int SPEED_CHANGE_FACTOR_DEC = 40;
+const int SPEED_CAP = 255; // [0-255]
 const int STOP_TIME = 5000; // ms
+const int INITAL_SPEED = 120;
 const bool GRACEFUL_STOP = true; // whether to stop immediately or gradually
 const bool GRACEFUL_START = true; // whether to start immediately or gradually
-const int LOOP_DELAY = 200; // ms
+const int LOOP_DELAY = 400; // ms
 
 const int NUM_STATIONS = 4; // Number of Distance sensors to be proceeded.
 const int DISTANCE_SENSOR_ADDRESS[] = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35};
